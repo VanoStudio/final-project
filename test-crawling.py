@@ -2,19 +2,17 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
+import urllib.parse
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
-url = "https://www.rottentomatoes.com/m/superman_2025/reviews"
-driver.get(url)
+film = "interstellar"  # nanti bisa ganti dari input user
+search_url = f"https://www.rottentomatoes.com/search?search={urllib.parse.quote(film)}"
+driver.get(search_url)
 
-# Ambil semua elemen dengan data-qa="review-text"
-title = driver.find_element(By.CSS_SELECTOR, 'a[data-qa="sidebar-media-link"]')
-# reviews = driver.find_elements(By.CSS_SELECTOR, 'rt-text[data-qa="review-text"]')
-print(title.text)
-
-# Loop untuk ambil text dari masing-masing elemen
-# for r in reviews:
-#     print(r.text)
+# Ambil link hasil pertama
+first_result = driver.find_element(By.CSS_SELECTOR, 'search-page-media-row a')
+film_url = first_result.get_attribute("href")
+print("Link film:", film_url)
 
 driver.quit()
