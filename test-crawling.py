@@ -6,7 +6,7 @@ import urllib.parse
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
-film = "interstellar"  # nanti bisa ganti dari input user
+film = "Conjuring"  # nanti bisa ganti dari input user
 search_url = f"https://www.rottentomatoes.com/search?search={urllib.parse.quote(film)}"
 driver.get(search_url)
 
