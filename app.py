@@ -1,60 +1,108 @@
 import streamlit as st
 import re
 import urllib.parse
-import time
 import requests
 import json
+import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 # === CONFIG ===
-OPENROUTER_API_KEY = "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"  # Replace with your OpenRouter key
+OPENROUTER_API_KEY = "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"  # Replace with your OpenRouter key
 MODEL = "deepseek/deepseek-chat-v3-0324:free"
 
-# === FUNCTION: EXTRACT MOVIE NAME ===
+# === EXTRACT MOVIE NAME ===
 def extract_movie_name(user_input):
     match = re.search(r"(watch|about|think|review|film|movie|ulasan)\s+(.+)", user_input, re.IGNORECASE)
     if match:
         return match.group(2).strip(" ?!.")
     return user_input.strip(" ?!.")
 
-# === FUNCTION: SCRAPE REVIEWS ===
-def get_reviews(film):
+# === SEARCH MOVIES ===
+def search_movies(film):
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-
     search_url = f"https://www.rottentomatoes.com/search?search={urllib.parse.quote(film)}"
     driver.get(search_url)
-    time.sleep(2)
 
     try:
-        first_result = driver.find_element(By.CSS_SELECTOR, 'search-page-media-row a')
+        results = WebDriverWait(driver, 15).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'search-page-media-row a, search-page-result a'))
+        )
     except:
         driver.quit()
         return []
 
-    film_url = first_result.get_attribute("href")
-    review_url = film_url.rstrip("/") + "/reviews"
-    driver.get(review_url)
-    time.sleep(2)
+    movies = []
+    for r in results:
+        href = r.get_attribute("href")
+        title = r.text.strip()
+        if href and title:
+            movies.append((title, href))
 
-    reviews = [r.text for r in driver.find_elements(By.CSS_SELECTOR, '.review-text') if r.text.strip()]
     driver.quit()
-    return reviews
+    return movies
 
-# === FUNCTION: ANALYZE WITH LLM ===
+# === GET CRITIC + AUDIENCE REVIEWS WITH SCROLL AND WAIT ===
+def get_reviews(movie_url):
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+
+    critic_url = movie_url.rstrip("/") + "/reviews"
+    audience_url = movie_url.rstrip("/") + "/reviews?type=user"
+    all_reviews = []
+
+    selectors = ".review-text, .review-text__text, .audience-reviews__review"
+
+    # 1️⃣ Critics
+    driver.get(critic_url)
+    time.sleep(2)
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, selectors))
+        )
+    except:
+        pass
+    critic_reviews = [r.text for r in driver.find_elements(By.CSS_SELECTOR, selectors) if r.text.strip()]
+    all_reviews.extend(critic_reviews)
+
+    # 2️⃣ Audience
+    driver.get(audience_url)
+    time.sleep(2)
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, selectors))
+        )
+    except:
+        pass
+    audience_reviews = [r.text for r in driver.find_elements(By.CSS_SELECTOR, selectors) if r.text.strip()]
+    all_reviews.extend(audience_reviews)
+
+    driver.quit()
+    return all_reviews
+
+# === CALL AI ===
 def analyze_reviews(movie, reviews):
+    sample_reviews = [r[:300] for r in reviews[:8]]
+
     prompt = f"""
     You are a movie critic AI.
-    Analyze the Rotten Tomatoes reviews for the movie '{movie}':
-    {reviews[:8]}
+    Analyze the Rotten Tomatoes reviews (critics and audience) for the movie '{movie}':
+    {json.dumps(sample_reviews, indent=2)}
 
     1. Summarize the main opinions.
     2. Perform sentiment analysis (positive/negative/mixed).
@@ -76,41 +124,76 @@ def analyze_reviews(movie, reviews):
             "https://openrouter.ai/api/v1/chat/completions",
             headers=headers,
             data=json.dumps(payload),
-            timeout=60
+            timeout=180
         )
         result = response.json()
-        ai_text = result.get("choices", [{}])[0].get("message", {}).get("content", "⚠️ AI did not return a response.")
+        if "choices" not in result:
+            return f"## 🎬 {movie}\n\n⚠️ AI did not return a response.\n\nRaw Response:\n```json\n{json.dumps(result, indent=2)}\n```"
+        ai_text = result["choices"][0]["message"]["content"]
     except Exception as e:
         ai_text = f"⚠️ Error calling OpenRouter API: {e}"
 
-    # 🔥 Add movie title as header
     return f"## 🎬 {movie}\n\n{ai_text}"
 
-# === STREAMLIT CHATBOT ===
+# === STREAMLIT UI ===
 st.title("🎥 Rotten Tomatoes Movie Review Chatbot")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "search_results" not in st.session_state:
+    st.session_state.search_results = []
+if "selected_movie" not in st.session_state:
+    st.session_state.selected_movie = None
 
 # Display chat history
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).markdown(msg["content"])
 
-# User input
+# Step 1: User input
 if prompt := st.chat_input("Ask me about a movie..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.chat_message("user").markdown(prompt)
 
-    movie_name = extract_movie_name(prompt)
-
+    movie_query = extract_movie_name(prompt)
     with st.chat_message("assistant"):
-        with st.spinner(f"Searching reviews for '{movie_name}'..."):
-            reviews = get_reviews(movie_name)
+        with st.spinner(f"Searching for '{movie_query}'..."):
+            results = search_movies(movie_query)
 
+        if not results:
+            reply = f"❌ Sorry, I couldn't find any movies for '{movie_query}'."
+            st.markdown(reply)
+            st.session_state.messages.append({"role": "assistant", "content": reply})
+        else:
+            st.session_state.search_results = results
+            st.rerun()
+
+# Step 2: Movie selection
+if st.session_state.search_results and not st.session_state.selected_movie:
+    st.subheader("Select the correct movie:")
+    options = [title for title, _ in st.session_state.search_results]
+    choice = st.selectbox("Choose a movie", options)
+
+    if st.button("Get Reviews"):
+        for title, url in st.session_state.search_results:
+            if title == choice:
+                st.session_state.selected_movie = (title, url)
+                st.rerun()
+
+# Step 3: Scrape reviews and analyze
+if st.session_state.selected_movie:
+    title, url = st.session_state.selected_movie
+    with st.chat_message("assistant"):
+        with st.spinner(f"Scraping critic and audience reviews for '{title}'..."):
+            reviews = get_reviews(url)
+            st.write(f"DEBUG: {len(reviews)} reviews scraped")
             if not reviews:
-                reply = f"❌ Sorry, I couldn't find reviews for '{movie_name}'."
+                reply = f"❌ Sorry, I couldn't find reviews for '{title}'."
             else:
-                reply = analyze_reviews(movie_name, reviews)
+                reply = analyze_reviews(title, reviews)
 
         st.markdown(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
+
+    # Reset state
+    st.session_state.search_results = []
+    st.session_state.selected_movie = None
