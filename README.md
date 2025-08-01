@@ -5,6 +5,21 @@ It scrapes **Rotten Tomatoes** for critic and audience reviews of a movie, analy
 
 ---
 
+## 📸 DOCUMENTATION
+
+### 1. Prompting and Searching the Film
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/f0bccf12-7d10-4069-97f2-31d1a80ab89b" />
+
+### 2. Make sure the title of the Film
+<img width="1904" height="930" alt="image" src="https://github.com/user-attachments/assets/dcbea31b-65bd-48eb-8daf-db60b397d06f" />
+
+### 3. Scrapping data & Process to the LLM
+<img width="1920" height="924" alt="image" src="https://github.com/user-attachments/assets/cf334644-60b5-4c14-8663-94716efa038b" />
+
+### 4. Result from the LLM
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/3620de09-f107-415c-a7fe-7f6083417e19" />
+
+
 ## 🚀 Features
 - 🔍 **Movie Search:** Automatically searches Rotten Tomatoes based on user input.
 - 📜 **Review Scraping:** Collects both critic and audience reviews using Selenium.
