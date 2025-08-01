@@ -25,3 +25,7 @@ It scrapes **Rotten Tomatoes** for critic and audience reviews of a movie, analy
 ---
 
 ## 📂 Project Structure
+movie-review-chatbot/
+│── app.py # Main Streamlit app (your code)
+│── requirements.txt # Dependencies
+│── README.md # Documentation
