@@ -13,9 +13,20 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 # === CONFIG ===
-OPENROUTER_API_KEY = "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"  # Replace with your OpenRouter key
-MODEL = "deepseek/deepseek-chat-v3-0324:free"
+# Replace with your OpenRouter key
 
+with st.sidebar:
+    st.title("⚙️ Settings")
+    st.markdown("Customize the chatbot here.")
+
+    OPENROUTER_API_KEY = st.text_input("🔑 OpenRouter API Key", type="password")
+    MODEL = st.selectbox("🤖 Model", ["deepseek/deepseek-chat-v3-0324:free"])
+
+    if st.button("🗑️ Clear Chat"):
+        st.session_state.messages = []
+        st.session_state.search_results = []
+        st.session_state.selected_movie = None
+        st.rerun()
 # === EXTRACT MOVIE NAME ===
 def extract_movie_name(user_input):
     match = re.search(r"(watch|about|think|review|film|movie|ulasan)\s+(.+)", user_input, re.IGNORECASE)
@@ -128,7 +139,7 @@ def analyze_reviews(movie, reviews):
         )
         result = response.json()
         if "choices" not in result:
-            return f"## 🎬 {movie}\n\n⚠️ AI did not return a response.\n\nRaw Response:\n```json\n{json.dumps(result, indent=2)}\n```"
+            return f"## 🎬 {movie}\n\n⚠️ AI did not return a response. Check ur API OPENROUTER OR Ur Connection ‼️"
         ai_text = result["choices"][0]["message"]["content"]
     except Exception as e:
         ai_text = f"⚠️ Error calling OpenRouter API: {e}"
@@ -137,6 +148,8 @@ def analyze_reviews(movie, reviews):
 
 # === STREAMLIT UI ===
 st.title("🎥 Rotten Tomatoes Movie Review Chatbot")
+st.markdown("This is Suggestion for Prompt")
+st.code(f"""Review Inception\nWhat do you think about Interstellar?\nIs Oppenheimer worth watching?\nGive me a summary of Barbie reviews""")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
