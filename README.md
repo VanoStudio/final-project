@@ -5,6 +5,29 @@ It scrapes **Rotten Tomatoes** for critic and audience reviews of a movie, analy
 
 ---
 
+## ⚠️ Usage Warning
+
+> ❗ **Do not use this tool excessively or in rapid succession.**
+
+This scraper accesses Rotten Tomatoes using **Selenium**, which may be detected as bot activity. If overused, Rotten Tomatoes can:
+
+- Temporarily or permanently **block your IP address**
+- Redirect you to error or captcha pages
+- Prevent scraping and return no reviews
+
+---
+
+### ✅ How to Avoid Being Blocked
+
+- Use only **1–2 times per minute**
+- **Wait a few minutes** between each review request
+- If you see errors or "not found" messages even for known films:
+  - Try **switching your internet connection** (different IP)
+  - Use a **VPN or mobile hotspot**
+  - Run it from a different browser or device if needed
+
+---
+
 ## 📸 DOCUMENTATION
 
 ### 1. Prompting and Searching the Film
