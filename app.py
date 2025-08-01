@@ -198,6 +198,7 @@ if st.session_state.selected_movie:
     with st.chat_message("assistant"):
         with st.spinner(f"Scraping critic and audience reviews for '{title}'..."):
             reviews = get_reviews(url)
+            st.write(f"DEBUG: {len(reviews)} reviews scraped")
             if not reviews:
                 reply = f"❌ Sorry, I couldn't find reviews for '{title}'."
             else:
