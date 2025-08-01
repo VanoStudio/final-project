@@ -12,7 +12,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
-# === Sidebar Settings ===
+# === CONFIG ===
+# Replace with your OpenRouter key
+
 with st.sidebar:
     st.title("⚙️ Settings")
     st.markdown("Customize the chatbot here.")
@@ -25,28 +27,21 @@ with st.sidebar:
         st.session_state.search_results = []
         st.session_state.selected_movie = None
         st.rerun()
-
-# === Setup Selenium Headless Chrome ===
-def create_driver():
-    options = Options()
-    options.binary_location = "/usr/bin/google-chrome"  # Chrome di Streamlit Cloud
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--disable-dev-shm-usage")
-    service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
-
-# === Extract movie name ===
+# === EXTRACT MOVIE NAME ===
 def extract_movie_name(user_input):
     match = re.search(r"(watch|about|think|review|film|movie|ulasan)\s+(.+)", user_input, re.IGNORECASE)
     if match:
         return match.group(2).strip(" ?!.")
     return user_input.strip(" ?!.")
 
-# === Search movies on Rotten Tomatoes ===
+# === SEARCH MOVIES ===
 def search_movies(film):
-    driver = create_driver()
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     search_url = f"https://www.rottentomatoes.com/search?search={urllib.parse.quote(film)}"
     driver.get(search_url)
 
@@ -68,32 +63,41 @@ def search_movies(film):
     driver.quit()
     return movies
 
-# === Get critic and audience reviews ===
+# === GET CRITIC + AUDIENCE REVIEWS WITH SCROLL AND WAIT ===
 def get_reviews(movie_url):
-    driver = create_driver()
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+
     critic_url = movie_url.rstrip("/") + "/reviews"
     audience_url = movie_url.rstrip("/") + "/reviews?type=user"
     all_reviews = []
 
     selectors = ".review-text, .review-text__text, .audience-reviews__review"
 
-    # Critics
+    # 1️⃣ Critics
     driver.get(critic_url)
     time.sleep(2)
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     try:
-        WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, selectors)))
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, selectors))
+        )
     except:
         pass
     critic_reviews = [r.text for r in driver.find_elements(By.CSS_SELECTOR, selectors) if r.text.strip()]
     all_reviews.extend(critic_reviews)
 
-    # Audience
+    # 2️⃣ Audience
     driver.get(audience_url)
     time.sleep(2)
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     try:
-        WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, selectors)))
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, selectors))
+        )
     except:
         pass
     audience_reviews = [r.text for r in driver.find_elements(By.CSS_SELECTOR, selectors) if r.text.strip()]
@@ -102,21 +106,29 @@ def get_reviews(movie_url):
     driver.quit()
     return all_reviews
 
-# === Call OpenRouter AI ===
+# === CALL AI ===
 def analyze_reviews(movie, reviews):
     sample_reviews = [r[:300] for r in reviews[:8]]
+
     prompt = f"""
     You are a movie critic AI.
-    Analyze Rotten Tomatoes reviews (critics and audience) for '{movie}':
+    Analyze the Rotten Tomatoes reviews (critics and audience) for the movie '{movie}':
     {json.dumps(sample_reviews, indent=2)}
 
-    1. Summarize main opinions.
-    2. Perform sentiment analysis.
-    3. Decide if it's worth watching and explain why.
+    1. Summarize the main opinions.
+    2. Perform sentiment analysis (positive/negative/mixed).
+    3. Decide if the film is worth watching or not, and explain why.
     """
 
-    payload = {"model": MODEL, "messages": [{"role": "user", "content": prompt}]}
-    headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
     try:
         response = requests.post(
@@ -127,19 +139,18 @@ def analyze_reviews(movie, reviews):
         )
         result = response.json()
         if "choices" not in result:
-            return f"## 🎬 {movie}\n\n⚠️ AI did not return a response. Check API key or connection."
+            return f"## 🎬 {movie}\n\n⚠️ AI did not return a response. Check ur API OPENROUTER OR Ur Connection ‼️"
         ai_text = result["choices"][0]["message"]["content"]
     except Exception as e:
         ai_text = f"⚠️ Error calling OpenRouter API: {e}"
 
     return f"## 🎬 {movie}\n\n{ai_text}"
 
-# === Streamlit Chat UI ===
+# === STREAMLIT UI ===
 st.title("🎥 Rotten Tomatoes Movie Review Chatbot")
-st.markdown("💡 **Try these prompts:**")
-st.code("Review Inception\nWhat do you think about Interstellar?\nIs Oppenheimer worth watching?\nGive me a summary of Barbie reviews")
+st.markdown("This is Suggestion for Prompt")
+st.code(f"""Review Inception\nWhat do you think about Interstellar?\nIs Oppenheimer worth watching?\nGive me a summary of Barbie reviews""")
 
-# Session states
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "search_results" not in st.session_state:
